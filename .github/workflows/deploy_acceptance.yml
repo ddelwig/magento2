@@ -1,0 +1,37 @@
+name: Deploy application to acceptance
+
+on:
+  push:
+    branches:
+      - 'acceptance'  # acceptance/staging branch
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # Concurrency takes any arbitrary value, but this prevents multiple deployments happening at the same time.
+    # We set the concurrency to acceptance for this deployment workflow.
+    concurrency: acceptance
+    environment:
+      name: acceptance
+      url: https://acceptance.example.com
+    container: quay.io/hypernode/deploy:latest-php8.4-node22
+    steps:
+    - uses: actions/checkout@v3
+    - name: download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: deployment-build
+        path: build/
+    - uses: actions/cache@v3
+      with:
+        path: /tmp/composer-cache
+        key: ${{ runner.os }}-composer
+    - run: mkdir -p $HOME/.ssh
+    - run: hypernode-deploy deploy acceptance -vvv  # Deploy acceptance/staging stage defined in deploy.php
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
